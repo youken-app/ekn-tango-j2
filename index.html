@@ -379,6 +379,7 @@ body {
       <button class="btn primary" onclick="s3Start(rangeWords())">↺ 全単語</button>
       <button class="btn danger"  onclick="s3StartWeak()">弱点のみ再挑戦</button>
     </div>
+    <button class="btn" style="width:100%;color:#c0392b;border-color:#f0c0b8;" onclick="confirmReset()">この範囲のチェックをリセット</button>
   </div>
 
   <!-- ════ リジュームダイアログ（STEP１） ════ -->
@@ -405,7 +406,17 @@ body {
     </div>
   </div>
 
-  <!-- ════ ループ確認ダイアログ（STEP１） ════ -->
+  <!-- ════ チェックリセット確認ダイアログ ════ -->
+  <div class="dialog-overlay" id="dlgReset">
+    <div class="dialog">
+      <div class="dialog-title">チェックをリセット</div>
+      <div class="dialog-sub" id="dlgResetSub">この範囲のチェックをすべて0に戻します。よろしいですか？</div>
+      <div class="dialog-btns">
+        <button class="dialog-btn" onclick="closeDialog('dlgReset')">キャンセル</button>
+        <button class="dialog-btn primary" onclick="execReset()">リセットする</button>
+      </div>
+    </div>
+  </div>
   <div class="dialog-overlay" id="dlgLoop">
     <div class="dialog">
       <div class="dialog-title">範囲の最後まで再生しました</div>
@@ -843,6 +854,22 @@ function s3ShowResult() {
     list.appendChild(el);
   });
   showScreen('scResult');
+}
+
+function confirmReset() {
+  const w0 = rangeWords()[0];
+  const wL = rangeWords()[rangeWords().length - 1];
+  document.getElementById('dlgResetSub').textContent =
+    `No.${w0.no}〜No.${wL.no} のチェックをすべて0に戻します。よろしいですか？`;
+  showDialog('dlgReset');
+}
+
+function execReset() {
+  rangeWords().forEach(w => { checks[w.no] = 0; });
+  saveChecks();
+  closeDialog('dlgReset');
+  // リセット後すぐに全単語で再挑戦
+  s3Start(rangeWords());
 }
 
 /* 初期化 */
