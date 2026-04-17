@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>英検準2級 単語習得アプリ</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f5f5f0; min-height: 100vh;
+  display: flex; justify-content: center; padding: 1.25rem 1rem 3rem;
+}
+#app { width: 100%; max-width: 480px; }
+.screen { display: none; flex-direction: column; gap: 1.25rem; }
+.screen.active { display: flex; }
+
+.card {
+  background: #fff; border: 1px solid #e8e8e8; border-radius: 16px;
+  padding: 1.75rem 1.5rem; position: relative;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.step-badge { position: absolute; top: 12px; right: 12px; font-size: 11px; padding: 3px 8px; border-radius: 99px; border: 1px solid #ddd; color: #999; }
+.btn { padding: 12px 16px; border: 1px solid #ddd; border-radius: 10px; background: transparent; color: #1a1a1a; font-size: 15px; cursor: pointer; transition: background 0.15s, transform 0.1s; font-family: inherit; text-align: center; }
+.btn:hover { background: #eeede8; }
+.btn:active { transform: scale(0.97); }
+.btn.primary { background: #E6F1FB; color: #185FA5; border-color: transparent; }
+.btn.primary-solid { background: #185FA5; color: #fff; border-color: transparent; }
+.btn.danger  { background: #fdecea; color: #c0392b; border-color: transparent; }
+.btn-row { display: flex; gap: 10px; }
+.btn-row .btn { flex: 1; }
+.prog-wrap { height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; }
+.prog-fill  { height: 100%; background: #378ADD; border-radius: 3px; transition: width 0.4s ease; }
+.counter { font-size: 13px; color: #888; }
+
+/* ════ 音声起動オーバーレイ ════ */
+.audio-overlay {
+  position: absolute; inset: 0; border-radius: 16px;
+  background: rgba(24,95,165,0.96);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1rem; cursor: pointer; z-index: 10; transition: opacity 0.3s;
+}
+.audio-overlay.hidden { opacity: 0; pointer-events: none; }
+.audio-overlay-icon { font-size: 40px; line-height: 1; }
+.audio-overlay-btn { padding: 16px 32px; background: #fff; color: #185FA5; border: none; border-radius: 12px; font-size: 17px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.audio-overlay-sub { font-size: 13px; color: rgba(255,255,255,0.8); }
+
+/* ════ リジュームダイアログ ════ */
+.dialog-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.dialog-overlay.show { opacity: 1; pointer-events: all; }
+.dialog {
+  background: #fff; border-radius: 16px; padding: 1.5rem;
+  width: 88%; max-width: 360px;
+  display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+}
+.dialog-title { font-size: 15px; font-weight: 600; color: #1a1a1a; text-align: center; }
+.dialog-sub   { font-size: 13px; color: #888; text-align: center; line-height: 1.6; }
+.dialog-btns  { display: flex; gap: 10px; }
+.dialog-btn   { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #ddd; background: transparent; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; color: #1a1a1a; transition: background 0.15s; }
+.dialog-btn:hover { background: #f5f5f0; }
+.dialog-btn.primary { background: #185FA5; color: #fff; border-color: transparent; }
+
+/* ════ ホーム ════ */
+.home-header { padding: 1.5rem 0 0.5rem; }
+.home-title  { font-size: 1.3rem; font-weight: 600; color: #1a1a1a; }
+.home-sub    { font-size: 13px; color: #888; margin-top: 4px; }
+.home-stats  { background: #fff; border: 1px solid #e8e8e8; border-radius: 16px; padding: 1.25rem 1.5rem; display: flex; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+.hstat { flex: 1; text-align: center; }
+.hstat + .hstat { border-left: 1px solid #f0f0f0; }
+.hstat-num   { font-size: 1.6rem; font-weight: 500; color: #1a1a1a; }
+.hstat-label { font-size: 11px; color: #aaa; margin-top: 2px; }
+.hstat-num.blue  { color: #185FA5; }
+.hstat-num.green { color: #1e8449; }
+.step-card { background: #fff; border: 1px solid #e8e8e8; border-radius: 16px; padding: 1.25rem 1.5rem; cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.05); transition: box-shadow 0.15s, transform 0.1s; display: flex; align-items: center; gap: 1rem; }
+.step-card:hover  { box-shadow: 0 3px 10px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.step-card:active { transform: scale(0.98); }
+.step-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+.step-icon.s1 { background: #E6F1FB; }
+.step-icon.s2 { background: #e8f8ee; }
+.step-icon.s3 { background: #fef9e7; }
+.step-info { flex: 1; }
+.step-name  { font-size: 15px; font-weight: 500; color: #1a1a1a; }
+.step-desc  { font-size: 12px; color: #888; margin-top: 3px; }
+.step-arrow { font-size: 18px; color: #ccc; }
+.step-pill  { display: inline-block; margin-top: 4px; padding: 2px 10px; border-radius: 99px; font-size: 11px; background: #E6F1FB; color: #0C447C; border: 1px solid #85B7EB; }
+
+/* ════ 学習範囲設定 ════ */
+.range-card { background: #fff; border: 1px solid #e8e8e8; border-radius: 16px; padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+.range-card-title { font-size: 14px; font-weight: 500; color: #1a1a1a; }
+.range-step-label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #888; }
+.range-step-num { width: 20px; height: 20px; border-radius: 50%; background: #185FA5; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; flex-shrink: 0; }
+.range-input-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.range-num-input { width: 80px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; font-weight: 500; color: #1a1a1a; text-align: center; font-family: inherit; background: #fff; }
+.range-num-input:focus { outline: none; border-color: #378ADD; }
+.range-num-readonly { width: 80px; padding: 10px; border: 1px solid #85B7EB; border-radius: 8px; font-size: 16px; font-weight: 500; color: #185FA5; text-align: center; background: #E6F1FB; }
+.range-dash { font-size: 16px; color: #999; }
+.range-word-count { font-size: 13px; font-weight: 500; color: #185FA5; margin-left: auto; }
+.preset-row { display: flex; gap: 8px; margin-top: 8px; }
+.preset-btn { flex: 1; padding: 10px 4px; border-radius: 8px; border: 1px solid #ddd; background: transparent; font-size: 14px; font-weight: 500; color: #888; cursor: pointer; font-family: inherit; text-align: center; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.preset-btn.active { background: #E6F1FB; color: #0C447C; border-color: #85B7EB; }
+.range-result { padding: 10px 14px; border-radius: 8px; background: #f5f5f0; display: flex; align-items: center; justify-content: space-between; }
+.range-result-label { font-size: 12px; color: #888; }
+.range-result-val   { font-size: 14px; font-weight: 500; color: #1a1a1a; }
+.range-apply-btn { width: 100%; padding: 13px; background: #185FA5; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: inherit; transition: opacity 0.15s; }
+.range-apply-btn:active { opacity: 0.85; }
+
+/* ════ STEP１ ════ */
+.word-no      { font-size: 12px; color: #aaa; margin-bottom: 4px; }
+.word-display { font-size: 3rem; font-weight: 500; color: #1a1a1a; text-align: center; line-height: 1.2; }
+.phonetic     { font-size: 1rem; color: #999; letter-spacing: 0.05em; }
+.syl-row      { display: flex; gap: 4px; align-items: baseline; flex-wrap: wrap; justify-content: center; }
+.syl { font-size: 1.5rem; font-weight: 500; padding: 4px 8px; border-radius: 6px; transition: background 0.15s, color 0.15s; color: #1a1a1a; position: relative; }
+.syl-sep { font-size: 1.2rem; color: #ccc; }
+.syl.active { background: #E6F1FB; color: #185FA5; }
+.syl.active::after { content: ''; position: absolute; bottom: 2px; left: 8px; right: 8px; height: 2.5px; background: #185FA5; border-radius: 2px; }
+.play-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #999; }
+.play-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; transition: background 0.2s; }
+.play-dot.playing { background: #185FA5; }
+
+/* 自動再生スイッチ */
+.auto-row { display: flex; align-items: center; gap: 8px; }
+.switch-wrap { display: flex; align-items: center; gap: 6px; }
+.sw { position: relative; width: 40px; height: 22px; background: #ccc; border-radius: 11px; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+.sw.on { background: #185FA5; }
+.sw-knob { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left 0.2s; }
+.sw.on .sw-knob { left: 21px; }
+.sw-label { font-size: 12px; color: #888; }
+.auto-progress-wrap { flex: 1; height: 4px; background: #e0e0e0; border-radius: 2px; overflow: hidden; }
+.auto-progress-fill { height: 100%; background: #185FA5; border-radius: 2px; width: 0%; }
+
+/* ════ STEP２ ════ */
+.word-mean { font-size: 0.85rem; color: #999; margin-top: 4px; }
+.divider   { height: 1px; background: #f0f0f0; }
+.ex-label  { font-size: 11px; color: #aaa; letter-spacing: 0.06em; text-transform: uppercase; }
+.ex-en     { font-size: 1.05rem; color: #1a1a1a; line-height: 1.7; }
+.ex-en .tw { font-weight: 600; color: #185FA5; }
+.play-btn  { padding: 6px 14px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; background: transparent; cursor: pointer; font-family: inherit; color: #1a1a1a; transition: background 0.15s; }
+.play-btn:hover { background: #f5f5f0; }
+.mask-wrap  { position: relative; }
+.mask-inner { font-size: 1.1rem; color: #1a1a1a; line-height: 1.6; padding: 12px 14px; border-radius: 10px; background: #f5f5f0; min-height: 48px; }
+.mask-inner.large { font-size: 1.3rem; font-weight: 500; text-align: center; }
+.red-mask { position: absolute; inset: 0; background: #C0392B; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: opacity 0.25s; user-select: none; }
+.red-mask.off { opacity: 0; pointer-events: none; }
+.mask-hint { font-size: 13px; color: rgba(255,255,255,0.9); letter-spacing: 0.04em; }
+
+/* ════ STEP３ ════ */
+.check-dots { display: flex; gap: 6px; justify-content: center; }
+.cdot { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #ccc; background: transparent; transition: background 0.2s, border-color 0.2s; }
+.cdot.filled { background: #27ae60; border-color: #27ae60; }
+.judge-row { display: flex; gap: 12px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.judge-row.show { opacity: 1; pointer-events: all; }
+.btn-judge { flex: 1; padding: 14px; border-radius: 10px; border: none; font-size: 16px; font-weight: 500; cursor: pointer; transition: transform 0.1s; font-family: inherit; }
+.btn-judge:active { transform: scale(0.96); }
+.btn-ok { background: #e8f8ee; color: #1e8449; }
+.btn-ng { background: #fdecea; color: #c0392b; }
+.result-stats { display: flex; gap: 10px; }
+.rstat { flex: 1; padding: 14px 8px; border-radius: 10px; background: #f5f5f0; text-align: center; }
+.rstat-num   { font-size: 2rem; font-weight: 500; }
+.rstat-label { font-size: 12px; color: #888; margin-top: 3px; }
+.rstat-num.green { color: #1e8449; }
+.rstat-num.red   { color: #c0392b; }
+.rstat-num.blue  { color: #185FA5; }
+.section-title { font-size: 13px; font-weight: 500; color: #555; }
+.weak-list { display: flex; flex-direction: column; gap: 6px; }
+.weak-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #fff; border: 1px solid #f0f0f0; border-radius: 8px; font-size: 14px; }
+.weak-word { font-weight: 500; color: #1a1a1a; }
+.weak-mean { color: #888; font-size: 13px; }
+.weak-dots { display: flex; gap: 4px; }
+.wdot { width: 9px; height: 9px; border-radius: 50%; border: 1px solid #ccc; }
+.wdot.filled { background: #27ae60; border-color: #27ae60; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ════ ホーム ════ -->
+  <div class="screen active" id="scHome">
+    <div class="home-header">
+      <div class="home-title">英検準2級 パス単</div>
+      <div class="home-sub">単語習得アプリ</div>
+    </div>
+    <div class="home-stats">
+      <div class="hstat"><div class="hstat-num" id="hTotal">10</div><div class="hstat-label">総単語数</div></div>
+      <div class="hstat"><div class="hstat-num blue" id="hLearned">0</div><div class="hstat-label">学習済み</div></div>
+      <div class="hstat"><div class="hstat-num green" id="hMastered">0</div><div class="hstat-label">習得済み</div></div>
+    </div>
+
+    <!-- 学習範囲設定 -->
+    <div class="range-card">
+      <div class="range-card-title">学習範囲を設定</div>
+      <div>
+        <div class="range-step-label"><div class="range-step-num">1</div>開始No.を入力してください</div>
+        <div class="range-input-row">
+          <span style="font-size:13px;color:#888;">No.</span>
+          <input class="range-num-input" id="rangeStart" type="number" value="1" min="1" oninput="updateRange()">
+          <span class="range-dash">〜</span>
+          <div class="range-num-readonly" id="rangeEnd">50</div>
+          <span style="font-size:13px;color:#888;">No.</span>
+          <span class="range-word-count" id="rangeCount">50語</span>
+        </div>
+      </div>
+      <div>
+        <div class="range-step-label"><div class="range-step-num">2</div>1回の学習量をタップしてください</div>
+        <div class="preset-row">
+          <button class="preset-btn active" id="rp50"  onclick="selectRangePreset(50)">50語</button>
+          <button class="preset-btn"        id="rp100" onclick="selectRangePreset(100)">100語</button>
+          <button class="preset-btn"        id="rp200" onclick="selectRangePreset(200)">200語</button>
+        </div>
+      </div>
+      <div class="range-result">
+        <span class="range-result-label">学習範囲</span>
+        <span class="range-result-val" id="rangeResult">No.1 〜 No.50（50語）</span>
+      </div>
+      <button class="range-apply-btn" id="rangeApplyBtn" onclick="applyRange()">この範囲で設定する</button>
+    </div>
+
+    <div class="step-card" onclick="goStep1()">
+      <div class="step-icon s1">🔊</div>
+      <div class="step-info">
+        <div class="step-name">STEP 1　音とスペルの紐づけ</div>
+        <div class="step-desc">フラッシュカード・音節ハイライト</div>
+        <span class="step-pill" id="homePill1">No.1〜50</span>
+      </div>
+      <div class="step-arrow">›</div>
+    </div>
+    <div class="step-card" onclick="goStep2()">
+      <div class="step-icon s2">📖</div>
+      <div class="step-info">
+        <div class="step-name">STEP 2　例文で文脈理解</div>
+        <div class="step-desc">赤シート風・日本語訳を隠してチェック</div>
+        <span class="step-pill" id="homePill2">No.1〜50</span>
+      </div>
+      <div class="step-arrow">›</div>
+    </div>
+    <div class="step-card" onclick="goStep3()">
+      <div class="step-icon s3">✅</div>
+      <div class="step-info">
+        <div class="step-name">STEP 3　即答チェック</div>
+        <div class="step-desc">3チェック制・弱点管理</div>
+        <span class="step-pill" id="homePill3">No.1〜50</span>
+      </div>
+      <div class="step-arrow">›</div>
+    </div>
+  </div>
+
+  <!-- ════ STEP１ ════ -->
+  <div class="screen" id="scStep1">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <button class="btn" style="padding:6px 14px;font-size:13px;" onclick="goHome()">← ホーム</button>
+      <span class="counter" id="s1Counter">1 / 10</span>
+    </div>
+    <div class="prog-wrap"><div class="prog-fill" id="s1Prog" style="width:10%"></div></div>
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;gap:1.25rem;min-height:300px;justify-content:center;">
+      <span class="step-badge">STEP 1</span>
+      <div class="audio-overlay" id="s1Overlay" onclick="s1StartWithAudio()">
+        <div class="audio-overlay-icon">🔊</div>
+        <button class="audio-overlay-btn">タップして再生</button>
+        <div class="audio-overlay-sub">音声を有効にして学習を開始します</div>
+      </div>
+      <div class="word-no" id="s1No">No. 1</div>
+      <div class="word-display" id="s1Word">let</div>
+      <div class="phonetic" id="s1Phonetic">/lɛt/</div>
+      <div class="syl-row" id="s1Syls"></div>
+      <div class="play-status">
+        <div class="play-dot" id="s1Dot"></div>
+        <span id="s1Label">再生ボタンを押してください</span>
+      </div>
+    </div>
+    <!-- 自動再生スイッチ -->
+    <div class="auto-row">
+      <div class="switch-wrap" onclick="toggleAutoPlay()">
+        <div class="sw" id="autoSw"><div class="sw-knob"></div></div>
+        <span class="sw-label" id="autoSwLabel">自動再生 OFF</span>
+      </div>
+      <div class="auto-progress-wrap" id="autoProgWrap" style="display:none;">
+        <div class="auto-progress-fill" id="autoProgFill"></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="s1Play()">▶ 再生</button>
+      <button class="btn primary" onclick="s1Next()">次へ →</button>
+    </div>
+  </div>
+
+  <!-- ════ STEP２ ════ -->
+  <div class="screen" id="scStep2">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <button class="btn" style="padding:6px 14px;font-size:13px;" onclick="goHome()">← ホーム</button>
+      <span class="counter" id="s2Counter">1 / 10</span>
+    </div>
+    <div class="prog-wrap"><div class="prog-fill" id="s2Prog" style="width:10%"></div></div>
+    <div class="card" style="display:flex;flex-direction:column;gap:1.25rem;">
+      <span class="step-badge">STEP 2</span>
+      <div class="audio-overlay" id="s2Overlay" onclick="s2StartWithAudio()">
+        <div class="audio-overlay-icon">🔊</div>
+        <button class="audio-overlay-btn">タップして再生</button>
+        <div class="audio-overlay-sub">音声を有効にして学習を開始します</div>
+      </div>
+      <div>
+        <div class="word-no" id="s2No">No. 1</div>
+        <div class="word-display" style="font-size:2rem;text-align:left;" id="s2Word">let</div>
+        <div class="word-mean" id="s2Mean">Oに〜させる</div>
+      </div>
+      <div class="divider"></div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="ex-label">例文</div>
+        <div class="ex-en" id="s2ExEn"></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="play-btn" onclick="s2PlayEx()">▶ 例文を再生</button>
+          <div class="play-status">
+            <div class="play-dot" id="s2Dot"></div>
+            <span id="s2Label"></span>
+          </div>
+        </div>
+        <div class="mask-wrap">
+          <div class="mask-inner" id="s2ExJa"></div>
+          <div class="red-mask" id="s2Mask" onclick="s2Reveal()">
+            <span class="mask-hint">タップして日本語訳を確認</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="s2Restart()">↺ もう一度</button>
+      <button class="btn primary" onclick="s2Next()">次へ →</button>
+    </div>
+  </div>
+
+  <!-- ════ STEP３（クイズ） ════ -->
+  <div class="screen" id="scStep3">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <button class="btn" style="padding:6px 14px;font-size:13px;" onclick="goHome()">← ホーム</button>
+      <span class="counter" id="s3Counter">1 / 10</span>
+    </div>
+    <div class="prog-wrap"><div class="prog-fill" id="s3Prog" style="width:0%"></div></div>
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;gap:1.5rem;min-height:300px;justify-content:center;">
+      <span class="step-badge">STEP 3</span>
+      <div class="word-no" id="s3No">No. 1</div>
+      <div class="word-display" id="s3Word">let</div>
+      <div class="check-dots" id="s3Dots"></div>
+      <div class="mask-wrap" style="width:100%;">
+        <div class="mask-inner large" id="s3Answer"></div>
+        <div class="red-mask" id="s3Mask" onclick="s3Reveal()">
+          <span class="mask-hint">タップして答えを確認</span>
+        </div>
+      </div>
+      <div class="judge-row" id="s3Judge">
+        <button class="btn-judge btn-ng" onclick="s3Judge(false)">✗ 言えなかった</button>
+        <button class="btn-judge btn-ok"  onclick="s3Judge(true)">✓ 言えた！</button>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="goHome()">ホームへ</button>
+    </div>
+  </div>
+
+  <!-- ════ STEP３（結果） ════ -->
+  <div class="screen" id="scResult">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <button class="btn" style="padding:6px 14px;font-size:13px;" onclick="goHome()">← ホーム</button>
+      <span style="font-size:14px;font-weight:500;color:#1a1a1a;">結果</span>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;gap:1rem;">
+      <div style="font-size:1.1rem;font-weight:500;color:#1a1a1a;">このセッションの結果</div>
+      <div class="result-stats">
+        <div class="rstat"><div class="rstat-num green" id="rOk">0</div><div class="rstat-label">言えた</div></div>
+        <div class="rstat"><div class="rstat-num red"   id="rNg">0</div><div class="rstat-label">言えなかった</div></div>
+        <div class="rstat"><div class="rstat-num blue"  id="rDone">0</div><div class="rstat-label">習得済み</div></div>
+      </div>
+    </div>
+    <div class="section-title" id="weakTitle" style="display:none;">弱点単語（3チェック未満）</div>
+    <div class="weak-list" id="weakList"></div>
+    <div class="btn-row">
+      <button class="btn primary" onclick="s3Start(rangeWords())">↺ 全単語</button>
+      <button class="btn danger"  onclick="s3StartWeak()">弱点のみ再挑戦</button>
+    </div>
+  </div>
+
+  <!-- ════ リジュームダイアログ（STEP１） ════ -->
+  <div class="dialog-overlay" id="dlgResume1">
+    <div class="dialog">
+      <div class="dialog-title">STEP 1 を再開</div>
+      <div class="dialog-sub" id="dlgResume1Sub">前回 No.5 で終了しました</div>
+      <div class="dialog-btns">
+        <button class="dialog-btn" onclick="s1StartFrom(true)">最初から</button>
+        <button class="dialog-btn primary" onclick="s1StartFrom(false)">続きから →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ リジュームダイアログ（STEP２） ════ -->
+  <div class="dialog-overlay" id="dlgResume2">
+    <div class="dialog">
+      <div class="dialog-title">STEP 2 を再開</div>
+      <div class="dialog-sub" id="dlgResume2Sub">前回 No.5 で終了しました</div>
+      <div class="dialog-btns">
+        <button class="dialog-btn" onclick="s2StartFrom(true)">最初から</button>
+        <button class="dialog-btn primary" onclick="s2StartFrom(false)">続きから →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ ループ確認ダイアログ（STEP１） ════ -->
+  <div class="dialog-overlay" id="dlgLoop">
+    <div class="dialog">
+      <div class="dialog-title">範囲の最後まで再生しました</div>
+      <div class="dialog-sub" id="dlgLoopSub">最初から繰り返しますか？</div>
+      <div class="dialog-btns">
+        <button class="dialog-btn" onclick="loopEnd()">終了する</button>
+        <button class="dialog-btn primary" onclick="loopRestart()">最初から ↺</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+/* ════ 単語データ ════ */
+const ALL_WORDS = [
+  { no:1,  word:"let",    phonetic:"/lɛt/",        syllables:["let"],         mean:"Oに〜させる",              ex:"She [let] me use her pen.",          exja:"彼女は私にペンを使わせてくれた。" },
+  { no:2,  word:"decide", phonetic:"/dɪˈsaɪd/",    syllables:["de","cide"],   mean:"を決心する",               ex:"I [decided] to walk to school.",     exja:"私は歩いて学校に行くことにした。" },
+  { no:3,  word:"train",  phonetic:"/treɪn/",       syllables:["train"],       mean:"を訓練する",               ex:"He [trains] hard every day.",        exja:"彼は毎日一生懸命トレーニングする。" },
+  { no:4,  word:"travel", phonetic:"/ˈtræv.əl/",   syllables:["trav","el"],   mean:"（を）旅行する",           ex:"I want to [travel] to Canada.",      exja:"私はカナダに旅行したい。" },
+  { no:5,  word:"leave",  phonetic:"/liːv/",        syllables:["leave"],       mean:"を置き忘れる、（を）去る", ex:"I [left] my key at home.",           exja:"私は家に鍵を置き忘れた。" },
+  { no:6,  word:"park",   phonetic:"/pɑːrk/",       syllables:["park"],        mean:"を駐車する",               ex:"Please [park] your bike here.",      exja:"自転車はここに駐車してください。" },
+  { no:7,  word:"order",  phonetic:"/ˈɔːr.dər/",   syllables:["or","der"],    mean:"（を）注文する",           ex:"I [ordered] a pizza.",               exja:"私はピザを注文した。" },
+  { no:8,  word:"lose",   phonetic:"/luːz/",        syllables:["lose"],        mean:"を失う、負ける",           ex:"I [lost] my phone.",                 exja:"私はスマホをなくした。" },
+  { no:9,  word:"move",   phonetic:"/muːv/",        syllables:["move"],        mean:"引っ越す、を動かす",       ex:"We [moved] to Osaka last year.",     exja:"私たちは去年大阪に引っ越した。" },
+  { no:10, word:"pay",    phonetic:"/peɪ/",         syllables:["pay"],         mean:"（を）支払う",             ex:"I [paid] for lunch.",                exja:"私は昼食代を払った。" },
+];
+
+/* ════ LocalStorage ════ */
+const CKEY   = 'vocab_checks_v1';
+const R1KEY  = 'vocab_resume_s1';
+const R2KEY  = 'vocab_resume_s2';
+const RNGKEY = 'vocab_range';
+
+function loadChecks() { try { return JSON.parse(localStorage.getItem(CKEY)) || {}; } catch(e) { return {}; } }
+function saveChecks()  { localStorage.setItem(CKEY, JSON.stringify(checks)); }
+let checks = loadChecks();
+function getCheck(no)  { return checks[no] || 0; }
+function addCheck(no)  { checks[no] = Math.min(3, getCheck(no) + 1); saveChecks(); }
+
+function saveResume(key, no) { localStorage.setItem(key, no); }
+function loadResume(key)     { return parseInt(localStorage.getItem(key)) || null; }
+
+/* ════ 学習範囲 ════ */
+let rangePreset = 50;
+let rangeStart  = 1;
+let rangeEnd    = 50;
+
+function rangeWords() {
+  return ALL_WORDS.filter(w => w.no >= rangeStart && w.no <= rangeEnd);
+}
+
+function selectRangePreset(n) {
+  rangePreset = n;
+  ['50','100','200'].forEach(v => document.getElementById('rp'+v).classList.toggle('active', parseInt(v)===n));
+  updateRange();
+}
+
+function updateRange() {
+  rangeStart = parseInt(document.getElementById('rangeStart').value) || 1;
+  const end = rangeStart + rangePreset - 1;
+  document.getElementById('rangeEnd').textContent    = end;
+  document.getElementById('rangeCount').textContent  = rangePreset + '語';
+  document.getElementById('rangeResult').textContent = `No.${rangeStart} 〜 No.${end}（${rangePreset}語）`;
+}
+
+function applyRange() {
+  rangeStart = parseInt(document.getElementById('rangeStart').value) || 1;
+  rangeEnd   = rangeStart + rangePreset - 1;
+  const label = `No.${rangeStart}〜${rangeEnd}`;
+  ['homePill1','homePill2','homePill3'].forEach(id => document.getElementById(id).textContent = label);
+  const btn = document.getElementById('rangeApplyBtn');
+  btn.textContent = '設定しました ✓';
+  setTimeout(() => { btn.textContent = 'この範囲で設定する'; }, 1500);
+  localStorage.setItem(RNGKEY, JSON.stringify({ start: rangeStart, end: rangeEnd, preset: rangePreset }));
+}
+
+function loadRangeSaved() {
+  try {
+    const d = JSON.parse(localStorage.getItem(RNGKEY));
+    if (!d) return;
+    rangeStart  = d.start;
+    rangeEnd    = d.end;
+    rangePreset = d.preset;
+    document.getElementById('rangeStart').value = rangeStart;
+    selectRangePreset(rangePreset);
+    const label = `No.${rangeStart}〜${rangeEnd}`;
+    ['homePill1','homePill2','homePill3'].forEach(id => document.getElementById(id).textContent = label);
+  } catch(e) {}
+}
+
+/* ════ 画面切り替え ════ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function showDialog(id)  { document.getElementById(id).classList.add('show'); }
+function closeDialog(id) { document.getElementById(id).classList.remove('show'); }
+
+function goHome() {
+  s1Session++; // 再生中のコールバックをすべて無効化
+  stopSpeech(); stopAutoTimer();
+  updateHomeStats();
+  showScreen('scHome');
+}
+function updateHomeStats() {
+  document.getElementById('hTotal').textContent    = ALL_WORDS.length;
+  document.getElementById('hLearned').textContent  = ALL_WORDS.filter(w => getCheck(w.no) >= 1).length;
+  document.getElementById('hMastered').textContent = ALL_WORDS.filter(w => getCheck(w.no) >= 3).length;
+}
+
+/* ════ 音声 ════ */
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  const tryUnlock = () => {
+    const dummy = new SpeechSynthesisUtterance(' ');
+    dummy.volume = 0; dummy.lang = 'en-US';
+    speechSynthesis.speak(dummy);
+  };
+  speechSynthesis.getVoices().length > 0 ? tryUnlock() : speechSynthesis.addEventListener('voiceschanged', tryUnlock, { once: true });
+}
+
+let sylTimers = [];
+function stopSpeech() {
+  sylTimers.forEach(clearTimeout); sylTimers = [];
+  if (window.speechSynthesis) speechSynthesis.cancel();
+}
+function speak(text, rate, onEnd) {
+  if (!window.speechSynthesis) { if (onEnd) onEnd(); return; }
+  const doSpeak = () => {
+    const voices = speechSynthesis.getVoices();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US'; u.rate = rate || 1;
+    const v = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en')) || null;
+    if (v) u.voice = v;
+    u.onend = onEnd || null;
+    u.onerror = (e) => { if (onEnd) onEnd(); };
+    speechSynthesis.speak(u);
+  };
+  speechSynthesis.getVoices().length > 0 ? doSpeak() : speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true });
+}
+
+/* ════ STEP１ ════ */
+let s1Words = [], s1Idx = 0, s1Playing = false, s1Session = 0;
+let autoPlayOn = false, autoTimer = null, autoBarTimer = null;
+
+function goStep1() {
+  s1Words = rangeWords();
+  showScreen('scStep1');
+  const saved = loadResume(R1KEY);
+  const savedIdx = saved ? s1Words.findIndex(w => w.no === saved) : -1;
+  if (savedIdx > 0) {
+    document.getElementById('dlgResume1Sub').textContent = `前回 No.${saved} で終了しました`;
+    showDialog('dlgResume1');
+  } else {
+    s1Idx = 0; s1Render();
+    document.getElementById('s1Overlay').classList.remove('hidden');
+  }
+}
+
+function s1StartFrom(fromBeginning) {
+  closeDialog('dlgResume1');
+  if (fromBeginning) {
+    s1Idx = 0;
+  } else {
+    const saved = loadResume(R1KEY);
+    const idx = s1Words.findIndex(w => w.no === saved);
+    s1Idx = idx >= 0 ? idx : 0;
+  }
+  s1Render();
+  document.getElementById('s1Overlay').classList.remove('hidden');
+}
+
+function s1StartWithAudio() {
+  unlockAudio();
+  document.getElementById('s1Overlay').classList.add('hidden');
+  setTimeout(s1Play, 300);
+}
+
+function s1Render() {
+  const w = s1Words[s1Idx];
+  if (!w) return;
+  document.getElementById('s1No').textContent       = `No. ${w.no}`;
+  document.getElementById('s1Word').textContent     = w.word;
+  document.getElementById('s1Phonetic').textContent = w.phonetic;
+  document.getElementById('s1Counter').textContent  = `${s1Idx + 1} / ${s1Words.length}`;
+  document.getElementById('s1Prog').style.width     = `${((s1Idx + 1) / s1Words.length) * 100}%`;
+  s1RenderSyls(-1);
+  s1SetStatus(false, '再生ボタンを押してください');
+  saveResume(R1KEY, w.no);
+}
+
+function s1RenderSyls(activeIdx) {
+  const row = document.getElementById('s1Syls');
+  row.innerHTML = '';
+  s1Words[s1Idx].syllables.forEach((s, i) => {
+    if (i > 0) { const sep = document.createElement('span'); sep.className = 'syl-sep'; sep.textContent = '·'; row.appendChild(sep); }
+    const el = document.createElement('span');
+    el.className = 'syl' + (i === activeIdx ? ' active' : '');
+    el.id = `syl_${i}`; el.textContent = s;
+    row.appendChild(el);
+  });
+}
+
+function s1HilSyl(idx) {
+  s1Words[s1Idx].syllables.forEach((_, i) => {
+    const el = document.getElementById(`syl_${i}`);
+    if (el) el.classList.toggle('active', i === idx);
+  });
+}
+
+function s1SetStatus(playing, label) {
+  document.getElementById('s1Dot').classList.toggle('playing', playing);
+  document.getElementById('s1Label').textContent = label;
+  s1Playing = playing;
+}
+
+function s1Play() {
+  if (s1Playing) return;
+  stopSpeech(); stopAutoTimer();
+  const session = ++s1Session;
+  s1SetStatus(true, '再生中...');
+  s1HilSyl(-1);
+  const w = s1Words[s1Idx];
+  const guard = (fn) => (...args) => { if (s1Session === session) fn(...args); };
+
+  function step1(cb) {
+    if (s1Session !== session) return;
+    s1SetStatus(true, '通常速度で読み上げ中');
+    speak(w.word, 1, guard(() => { const t = setTimeout(guard(cb), 300); sylTimers.push(t); }));
+  }
+  function step2(cb) {
+    if (s1Session !== session) return;
+    s1SetStatus(true, 'ゆっくり読み上げ中');
+    speak(w.word, 0.5, guard(() => { s1HilSyl(-1); const t = setTimeout(guard(cb), 200); sylTimers.push(t); }));
+    w.syllables.forEach((_, i) => { const t = setTimeout(guard(() => s1HilSyl(i)), i * 600 + 80); sylTimers.push(t); });
+  }
+
+  step1(() => step2(() => step1(() => step2(guard(() => {
+    s1SetStatus(false, '完了 ✓');
+    if (autoPlayOn) startAutoTimer();
+  })))));
+}
+
+function s1Next() {
+  s1Session++; stopSpeech(); stopAutoTimer();
+  s1Idx++;
+  if (s1Idx >= s1Words.length) {
+    // 範囲終了 → ループ確認
+    const w0 = s1Words[0], wL = s1Words[s1Words.length - 1];
+    document.getElementById('dlgLoopSub').textContent = `No.${w0.no}〜No.${wL.no} を再生しました。最初から繰り返しますか？`;
+    showDialog('dlgLoop');
+    return;
+  }
+  s1Render();
+  document.getElementById('s1Overlay').classList.add('hidden');
+  setTimeout(() => s1Play(), 300);
+}
+
+function loopRestart() {
+  closeDialog('dlgLoop');
+  s1Idx = 0; s1Render();
+  document.getElementById('s1Overlay').classList.add('hidden');
+  setTimeout(() => s1Play(), 300);
+}
+function loopEnd() {
+  closeDialog('dlgLoop');
+  s1SetStatus(false, '再生終了');
+}
+
+/* 自動再生 */
+function toggleAutoPlay() {
+  autoPlayOn = !autoPlayOn;
+  document.getElementById('autoSw').classList.toggle('on', autoPlayOn);
+  document.getElementById('autoSwLabel').textContent = autoPlayOn ? '自動再生 ON' : '自動再生 OFF';
+  document.getElementById('autoProgWrap').style.display = autoPlayOn ? 'block' : 'none';
+  if (!autoPlayOn) stopAutoTimer();
+}
+
+function startAutoTimer() {
+  stopAutoTimer();
+  const fill = document.getElementById('autoProgFill');
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  setTimeout(() => {
+    fill.style.transition = 'width 1.5s linear';
+    fill.style.width = '100%';
+  }, 50);
+  autoTimer = setTimeout(() => { s1Next(); }, 1800);
+}
+
+function stopAutoTimer() {
+  if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+  const fill = document.getElementById('autoProgFill');
+  if (fill) { fill.style.transition = 'none'; fill.style.width = '0%'; }
+}
+
+/* ════ STEP２ ════ */
+let s2Words = [], s2Idx = 0;
+
+function goStep2() {
+  s2Words = rangeWords();
+  showScreen('scStep2');
+  const saved = loadResume(R2KEY);
+  const savedIdx = saved ? s2Words.findIndex(w => w.no === saved) : -1;
+  if (savedIdx > 0) {
+    document.getElementById('dlgResume2Sub').textContent = `前回 No.${saved} で終了しました`;
+    showDialog('dlgResume2');
+  } else {
+    s2Idx = 0; s2Render();
+    document.getElementById('s2Overlay').classList.remove('hidden');
+  }
+}
+
+function s2StartFrom(fromBeginning) {
+  closeDialog('dlgResume2');
+  if (fromBeginning) {
+    s2Idx = 0;
+  } else {
+    const saved = loadResume(R2KEY);
+    const idx = s2Words.findIndex(w => w.no === saved);
+    s2Idx = idx >= 0 ? idx : 0;
+  }
+  s2Render();
+  document.getElementById('s2Overlay').classList.remove('hidden');
+}
+
+function s2StartWithAudio() {
+  unlockAudio();
+  document.getElementById('s2Overlay').classList.add('hidden');
+  setTimeout(s2PlayEx, 300);
+}
+
+function s2Render() {
+  const w = s2Words[s2Idx];
+  if (!w) return;
+  document.getElementById('s2No').textContent      = `No. ${w.no}`;
+  document.getElementById('s2Word').textContent    = w.word;
+  document.getElementById('s2Mean').textContent    = w.mean;
+  document.getElementById('s2ExJa').textContent    = w.exja;
+  document.getElementById('s2Counter').textContent = `${s2Idx + 1} / ${s2Words.length}`;
+  document.getElementById('s2Prog').style.width    = `${((s2Idx + 1) / s2Words.length) * 100}%`;
+  document.getElementById('s2ExEn').innerHTML = w.ex.replace(/\[(.+?)\]/g, '<span class="tw">$1</span>');
+  document.getElementById('s2Mask').classList.remove('off');
+  s2SetStatus(false, '');
+  saveResume(R2KEY, w.no);
+}
+
+function s2Reveal() { document.getElementById('s2Mask').classList.add('off'); }
+function s2SetStatus(p, l) {
+  document.getElementById('s2Dot').classList.toggle('playing', p);
+  document.getElementById('s2Label').textContent = l;
+}
+function s2PlayEx() {
+  stopSpeech();
+  const text = s2Words[s2Idx].ex.replace(/\[|\]/g, '');
+  s2SetStatus(true, '再生中...');
+  speak(text, 0.75, () => s2SetStatus(false, ''));
+}
+function s2Restart() {
+  document.getElementById('s2Mask').classList.remove('off');
+  document.getElementById('s2Overlay').classList.add('hidden');
+  stopSpeech(); setTimeout(s2PlayEx, 300);
+}
+function s2Next() {
+  stopSpeech();
+  s2Idx = (s2Idx + 1) % s2Words.length;
+  s2Render();
+  document.getElementById('s2Overlay').classList.add('hidden');
+  setTimeout(s2PlayEx, 300);
+}
+
+/* ════ STEP３ ════ */
+let s3Queue = [], s3Pos = 0, s3Ok = 0, s3Ng = 0;
+
+function goStep3()     { s3Start(rangeWords()); }
+function s3StartWeak() {
+  const w = rangeWords().filter(w => getCheck(w.no) < 3);
+  if (!w.length) { alert('弱点単語はありません！'); return; }
+  s3Start(w);
+}
+function s3Start(wordList) {
+  s3Queue = wordList.filter(w => getCheck(w.no) < 3).map(w => w.no);
+  s3Pos = 0; s3Ok = 0; s3Ng = 0;
+  showScreen('scStep3');
+  if (!s3Queue.length) { s3ShowResult(); return; }
+  s3Render();
+}
+function s3CurWord() { return ALL_WORDS.find(w => w.no === s3Queue[s3Pos]); }
+function s3Render() {
+  const w = s3CurWord(); if (!w) { s3ShowResult(); return; }
+  document.getElementById('s3No').textContent      = `No. ${w.no}`;
+  document.getElementById('s3Word').textContent    = w.word;
+  document.getElementById('s3Answer').textContent  = w.mean;
+  document.getElementById('s3Counter').textContent = `${s3Pos + 1} / ${s3Queue.length}`;
+  document.getElementById('s3Prog').style.width    = `${(s3Pos / s3Queue.length) * 100}%`;
+  document.getElementById('s3Mask').classList.remove('off');
+  document.getElementById('s3Judge').classList.remove('show');
+  const dots = document.getElementById('s3Dots');
+  dots.innerHTML = '';
+  const c = getCheck(w.no);
+  for (let i = 0; i < 3; i++) {
+    const d = document.createElement('div');
+    d.className = 'cdot' + (i < c ? ' filled' : '');
+    dots.appendChild(d);
+  }
+}
+function s3Reveal() {
+  document.getElementById('s3Mask').classList.add('off');
+  document.getElementById('s3Judge').classList.add('show');
+}
+function s3Judge(ok) {
+  const w = s3CurWord();
+  if (ok) { addCheck(w.no); s3Ok++; } else { s3Ng++; }
+  s3Pos++;
+  if (s3Pos >= s3Queue.length) s3ShowResult(); else s3Render();
+}
+function s3ShowResult() {
+  const done = ALL_WORDS.filter(w => getCheck(w.no) >= 3).length;
+  document.getElementById('rOk').textContent   = s3Ok;
+  document.getElementById('rNg').textContent   = s3Ng;
+  document.getElementById('rDone').textContent = done;
+  const weakWords = rangeWords().filter(w => getCheck(w.no) < 3);
+  const list  = document.getElementById('weakList');
+  const title = document.getElementById('weakTitle');
+  list.innerHTML = '';
+  title.style.display = weakWords.length ? 'block' : 'none';
+  weakWords.forEach(w => {
+    const c = getCheck(w.no);
+    const el = document.createElement('div');
+    el.className = 'weak-item';
+    const dotsHtml = [0,1,2].map(i => `<div class="wdot${i < c ? ' filled' : ''}"></div>`).join('');
+    el.innerHTML = `<div><span class="weak-word">No.${w.no} ${w.word}</span><span class="weak-mean"> — ${w.mean}</span></div><div class="weak-dots">${dotsHtml}</div>`;
+    list.appendChild(el);
+  });
+  showScreen('scResult');
+}
+
+/* 初期化 */
+loadRangeSaved();
+updateRange();
+updateHomeStats();
+</script>
+</body>
+</html>
