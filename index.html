@@ -2057,6 +2057,7 @@ const ALL_WORDS = [
 
 /* ════ LocalStorage ════ */
 const CKEY   = 'vocab_checks_v1';
+const TKEY   = 'vocab_tried_v1';
 const R1KEY  = 'vocab_resume_s1';
 const R2KEY  = 'vocab_resume_s2';
 const RNGKEY = 'vocab_range';
@@ -2066,6 +2067,12 @@ function saveChecks()  { localStorage.setItem(CKEY, JSON.stringify(checks)); }
 let checks = loadChecks();
 function getCheck(no)  { return checks[no] || 0; }
 function addCheck(no)  { checks[no] = Math.min(3, getCheck(no) + 1); saveChecks(); }
+
+function loadTried()  { try { return JSON.parse(localStorage.getItem(TKEY)) || {}; } catch(e) { return {}; } }
+function saveTried()  { localStorage.setItem(TKEY, JSON.stringify(tried)); }
+let tried = loadTried();
+function getTried(no) { return !!tried[no]; }
+function addTried(no) { tried[no] = true; saveTried(); }
 
 function saveResume(key, no) { localStorage.setItem(key, no); }
 function loadResume(key)     { return parseInt(localStorage.getItem(key)) || null; }
@@ -2134,7 +2141,7 @@ function goHome() {
 }
 function updateHomeStats() {
   document.getElementById('hTotal').textContent    = ALL_WORDS.length;
-  document.getElementById('hLearned').textContent  = ALL_WORDS.filter(w => getCheck(w.no) >= 1).length;
+  document.getElementById('hLearned').textContent  = ALL_WORDS.filter(w => getCheck(w.no) >= 1 || getTried(w.no)).length;
   document.getElementById('hMastered').textContent = ALL_WORDS.filter(w => getCheck(w.no) >= 3).length;
 }
 
@@ -2444,7 +2451,7 @@ function s3Reveal() {
 }
 function s3Judge(ok) {
   const w = s3CurWord();
-  if (ok) { addCheck(w.no); s3Ok++; } else { s3Ng++; }
+  if (ok) { addCheck(w.no); s3Ok++; } else { addTried(w.no); s3Ng++; }
   s3Pos++;
   if (s3Pos >= s3Queue.length) s3ShowResult(); else s3Render();
 }
@@ -2478,8 +2485,8 @@ function confirmReset() {
 }
 
 function execReset() {
-  rangeWords().forEach(w => { checks[w.no] = 0; });
-  saveChecks();
+  rangeWords().forEach(w => { checks[w.no] = 0; delete tried[w.no]; });
+  saveChecks(); saveTried();
   closeDialog('dlgReset');
   s3Start(activeWords());
 }
@@ -2493,8 +2500,8 @@ function goStats() {
 function renderStats() {
   const total    = ALL_WORDS.length;
   const mastered = ALL_WORDS.filter(w => getCheck(w.no) >= 3).length;
-  const weak     = ALL_WORDS.filter(w => getCheck(w.no) >= 1 && getCheck(w.no) < 3).length;
-  const untried  = ALL_WORDS.filter(w => getCheck(w.no) === 0).length;
+  const weak     = ALL_WORDS.filter(w => getCheck(w.no) < 3 && (getCheck(w.no) >= 1 || getTried(w.no))).length;
+  const untried  = ALL_WORDS.filter(w => getCheck(w.no) === 0 && !getTried(w.no)).length;
 
   document.getElementById('statsTotalLabel').textContent = total;
   document.getElementById('statsMastered').textContent   = mastered;
@@ -2512,7 +2519,7 @@ function renderStats() {
   document.getElementById('statsLegendGray').textContent  = `未挑戦 ${pGray}%`;
 
   const rWords    = rangeWords();
-  const weakWords = rWords.filter(w => getCheck(w.no) >= 1 && getCheck(w.no) < 3);
+  const weakWords = rWords.filter(w => getCheck(w.no) < 3 && (getCheck(w.no) >= 1 || getTried(w.no)));
   const w0 = rWords[0], wL = rWords[rWords.length - 1];
   document.getElementById('statsWeakTitle').textContent = `弱点単語（チェック1〜2）No.${w0.no}〜${wL.no}`;
   document.getElementById('statsWeakCount').textContent = weakWords.length + '件';
@@ -2542,7 +2549,7 @@ let weakModeActive = false;
 let weakModeWords  = [];
 
 function activateWeakMode() {
-  const weakWords = rangeWords().filter(w => getCheck(w.no) >= 1 && getCheck(w.no) < 3);
+  const weakWords = rangeWords().filter(w => getCheck(w.no) < 3 && (getCheck(w.no) >= 1 || getTried(w.no)));
   if (!weakWords.length) return;
   weakModeActive = true;
   weakModeWords  = weakWords;
