@@ -325,6 +325,7 @@ body {
       <div class="word-display" id="s1Word">let</div>
       <div class="phonetic" id="s1Phonetic">/lɛt/</div>
       <div class="syl-row" id="s1Syls"></div>
+      <div class="word-mean" id="s1Mean"></div>
       <div class="play-status">
         <div class="play-dot" id="s1Dot"></div>
         <span id="s1Label">再生ボタンを押してください</span>
@@ -2225,6 +2226,7 @@ function s1Render() {
   phoneticEl.style.display = w.phonetic ? 'block' : 'none';
   document.getElementById('s1Counter').textContent  = `${s1Idx + 1} / ${s1Words.length}`;
   document.getElementById('s1Prog').style.width     = `${((s1Idx + 1) / s1Words.length) * 100}%`;
+  document.getElementById('s1Mean').textContent     = w.mean || '';
   s1RenderSyls(-1);
   s1SetStatus(false, '再生ボタンを押してください');
   saveResume(R1KEY, w.no);
